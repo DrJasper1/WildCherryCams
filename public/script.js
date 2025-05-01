@@ -2440,7 +2440,7 @@ function setupHostAuthentication() {
       hostAuthenticationInProgress = true; 
 
       // Send authentication request to server
-      socket.emit('verify-host-password', { password: password }); 
+      socket.emit('authenticate-host', { password: password }); 
     });
   }
   
