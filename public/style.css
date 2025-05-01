@@ -379,8 +379,8 @@ video {
 /* Chat section */
 .chat-container {
     width: 35%;
-    min-height: 500px;
-    max-height: calc(100vh - 200px);
+    height: calc(100vh - 210px);
+    max-height: calc(100vh - 210px);
     background: rgba(0, 0, 0, 0.2);
     border-radius: 15px;
     display: flex;
@@ -388,6 +388,7 @@ video {
     box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
     border: 1px solid rgba(255, 105, 180, 0.2);
     flex: 1 1 300px;
+    overflow: hidden;
 }
 
 .chat-header {
@@ -429,8 +430,7 @@ video {
     gap: 10px;
     scrollbar-width: thin;
     scrollbar-color: #ff69b4 rgba(0, 0, 0, 0.2);
-    min-height: 200px;
-    max-height: calc(100% - 120px);
+    height: calc(100% - 110px);
     background: rgba(40, 10, 60, 0.2);
 }
 
@@ -485,24 +485,29 @@ video {
 
 .chat-input-container {
     display: flex;
-    padding: 12px;
-    background-color: #2a2a2a;
-    border-bottom-left-radius: 12px;
-    border-bottom-right-radius: 12px;
-    border-top: 1px solid #3a3a3a;
+    padding: 15px;
+    background: linear-gradient(to right, rgba(255, 76, 148, 0.6), rgba(255, 0, 132, 0.6));
+    border-bottom-left-radius: 15px;
+    border-bottom-right-radius: 15px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
     position: relative;
     bottom: 0;
     width: 100%;
+    box-shadow: 0 -4px 15px rgba(0, 0, 0, 0.2);
+    z-index: 10;
 }
 
 #chat-input {
     flex-grow: 1;
-    padding: 10px 15px;
-    border: none;
-    border-radius: 20px;
-    background-color: #363636;
+    padding: 12px 18px;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    border-radius: 25px;
+    background-color: rgba(255, 255, 255, 0.15);
     color: white;
     outline: none;
+    font-size: 15px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    transition: all 0.3s ease;
 }
 
 #chat-input:focus {
