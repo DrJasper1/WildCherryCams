@@ -3,12 +3,6 @@ const http = require('http');
 const socketIo = require('socket.io');
 const cors = require('cors');
 const path = require('path');
-const fs = require('fs');
-const crypto = require('crypto');
-
-// Host authentication settings
-const HOST_PASSWORD = '1'; // Simple password for testing
-
 const localtunnel = require('localtunnel');
 let ngrok;
 try {
@@ -16,10 +10,10 @@ try {
 } catch (e) {
   console.log('Ngrok not available, will try localtunnel as fallback');
 }
-// fs is already required above
+const fs = require('fs');
 
 // --- Configuration ---
-// HOST_PASSWORD is defined at the top of the file
+const HOST_PASSWORD = '1'; // **SECURITY RISK**: Hardcoded password
 const PORT = process.env.PORT || 3001; // Allow dynamic port assignment
 
 // Create Express app
@@ -189,9 +183,11 @@ io.on('connection', (socket) => {
       socket.emit('host-busy'); 
     }
   } else {
-    // No host exists yet - but now we'll just connect as regular user
-    console.log(`No host exists. User ${socket.id} connected as regular user.`);
-    // We won't auto-assign host status anymore
+    // No host exists yet - we'll make this a regular user (no longer auto-host)
+    console.log(`No host exists. User ${socket.id} will need to authenticate to become host.`);
+    socket.emit('require-host-auth', { message: 'Password required to become host' });
+    // Still emit connection-established to ensure camera access works
+    socket.emit('connection-established', { socketId: socket.id });
   }
   
   // Handle client requesting connection to host
@@ -217,29 +213,6 @@ io.on('connection', (socket) => {
     // Connect this client to the host
     console.log(`Connecting ${socket.id} to host ${currentHostId} upon request`);
     connectClientToHost(socket.id);
-  });
-  
-  // Handle host password verification
-  socket.on('verify-host-password', (data) => {
-    console.log(`User ${socket.id} attempting to become host with password`);    
-    if (data.password === HOST_PASSWORD) {
-      console.log(`User ${socket.id} authenticated as host successfully`);
-      
-      // If there's already a host, reject this request
-      if (currentHostId) {
-        console.log(`Host position already filled by ${currentHostId}. Rejecting request from ${socket.id}`);
-        socket.emit('host-auth-response', { success: false, message: 'Another user is already host' });
-        return;
-      }
-      
-      // Make this user the host
-      currentHostId = socket.id;
-      socket.emit('host-auth-response', { success: true, message: 'You are now the host' });
-      socket.broadcast.emit('host-status', { isHostAvailable: true });
-    } else {
-      console.log(`User ${socket.id} provided incorrect host password`);
-      socket.emit('host-auth-response', { success: false, message: 'Incorrect password' });
-    }
   });
   
   // Handle host checking for waiting clients

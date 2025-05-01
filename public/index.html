@@ -23,7 +23,7 @@
     </script>
     <title>Wild Cherry Cams - Live Video Chat</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=1">
 </head>
 <body>
     <div class="container">
@@ -71,13 +71,19 @@
             <div class="video-container">
                 <div class="video-wrapper local">
                     <video id="localVideo" autoplay muted playsinline></video>
+                    <button class="fullscreen-btn" id="local-fullscreen-btn" title="Toggle fullscreen">
+                        <i class="fas fa-expand"></i>
+                    </button>
                     <div class="video-label">You</div>
                     <div class="video-stats" id="local-stats"></div>
                     <div class="video-overlay" id="local-overlay"></div>
                 </div>
                 
-                <div class="video-wrapper remote">
+                <div class="video-wrapper remote" id="remote-video-wrapper">
                     <video id="remoteVideo" autoplay playsinline></video>
+                    <button class="fullscreen-btn" id="remote-fullscreen-btn" title="Toggle fullscreen">
+                        <i class="fas fa-expand"></i>
+                    </button>
                     <div class="video-label">Stranger</div>
                     <div class="video-stats" id="remote-stats"></div>
                     <div class="video-overlay" id="remote-overlay">Waiting for partner</div>

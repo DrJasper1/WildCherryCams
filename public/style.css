@@ -33,10 +33,10 @@ body::before {
     width: 100%;
     height: 100vh;
     max-width: 1400px;
-    padding: 10px;
+    padding: 5px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 5px;
     background-color: rgba(0, 0, 0, 0.3);
     border-radius: 10px;
     box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
@@ -46,8 +46,8 @@ body::before {
 /* Site Header Styles */
 .site-header {
     text-align: center;
-    margin-bottom: 20px;
-    padding-bottom: 15px;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
     border-bottom: 2px solid rgba(255, 105, 180, 0.3);
 }
 
@@ -59,14 +59,14 @@ body::before {
 }
 
 .site-logo {
-    font-size: 2.5rem;
+    font-size: 1.8rem;
     color: #ff69b4;
-    margin-right: 15px;
+    margin-right: 10px;
     text-shadow: 0 0 10px rgba(255, 105, 180, 0.7);
 }
 
 .site-title {
-    font-size: 2.5rem;
+    font-size: 1.8rem;
     font-weight: bold;
     background: linear-gradient(to right, #ff69b4, #ff1493);
     -webkit-background-clip: text;
@@ -86,9 +86,9 @@ body::before {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 10px;
+    gap: 5px;
     width: 100%;
-    margin-bottom: 10px;
+    margin-bottom: 5px;
     position: relative;
 }
 
@@ -272,10 +272,10 @@ body::before {
     display: flex;
     flex-direction: row;
     width: 100%;
-    min-height: calc(100vh - 180px);
-    gap: 15px;
+    min-height: calc(100vh - 150px);
+    gap: 10px;
     flex-wrap: wrap;
-    max-height: calc(100vh - 180px);
+    max-height: calc(100vh - 150px);
 }
 
 /* Video section */
@@ -301,12 +301,11 @@ body::before {
     overflow: hidden;
     border-radius: 15px;
     background-color: #000;
-    height: 0;
-    padding-bottom: 40%; /* Further reduced aspect ratio to fit both cameras */
+    height: 300px; /* Increased height for better viewing */
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.4);
     border: 2px solid rgba(255, 105, 180, 0.3);
     transition: all 0.3s ease;
-    margin-bottom: 5px;
+    margin-bottom: 15px;
 }
 
 .video-wrapper.local {
@@ -320,9 +319,12 @@ body::before {
 }
 
 video {
+    position: absolute;
+    top: 0;
+    left: 0;
     width: 100%;
     height: 100%;
-    object-fit: contain; /* Changed from cover to contain to prevent cropping */
+    object-fit: contain; /* Changed from cover to contain to show the full camera feed */
     background-color: #111;
     border-radius: 12px;
     transition: all 0.3s ease;
@@ -357,6 +359,42 @@ video {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
+/* Fullscreen button */
+.fullscreen-btn {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 15;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s ease;
+}
+
+.fullscreen-btn:hover {
+    background: rgba(255, 20, 147, 0.7);
+    transform: scale(1.1);
+}
+
+/* Style for when video is in fullscreen mode */
+.video-wrapper.fullscreen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 1000;
+    border-radius: 0;
+}
+
 .video-overlay {
     position: absolute;
     top: 0;
@@ -379,8 +417,8 @@ video {
 /* Chat section */
 .chat-container {
     width: 35%;
-    height: calc(100vh - 240px);
-    max-height: calc(100vh - 240px);
+    height: calc(100vh - 270px);
+    max-height: calc(100vh - 270px);
     background: rgba(0, 0, 0, 0.2);
     border-radius: 15px;
     display: flex;

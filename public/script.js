@@ -1,4 +1,19 @@
 // DOM elements
+// Initialize socket.io connection
+let socket;
+
+try {
+  socket = io();
+  console.log('Socket.io initialized successfully');
+} catch (error) {
+  console.error('Failed to initialize socket.io:', error);
+  // Show error directly in status element since showError function isn't defined yet
+  if (document.getElementById('status')) {
+    document.getElementById('status').textContent = 'Failed to initialize socket connection. Please refresh the page.';
+    document.getElementById('status').style.color = 'red';
+  }
+}
+
 const localVideo = document.getElementById('localVideo');
 const remoteVideo = document.getElementById('remoteVideo');
 const statusDiv = document.getElementById('status');
@@ -47,6 +62,16 @@ const clearChatBtn = document.getElementById('clear-chat');
 const localStats = document.getElementById('local-stats');
 const remoteStats = document.getElementById('remote-stats');
 
+// Chat functions
+function enableChatFeatures() {
+  // Enable chat input and send button
+  chatInput.disabled = false;
+  sendMessageBtn.disabled = false;
+  
+  // Update placeholder text to show it's ready
+  chatInput.placeholder = "Type a message...";
+}
+
 // CRITICAL VIDEO CHECK FUNCTIONS:
 // These functions will be used throughout the code to prevent overlay text when video is showing
 
@@ -91,7 +116,7 @@ function updateStatus(message, type = 'info') {
 }
 
 // Global variables
-let socket;
+// socket is initialized at the top of the file
 let localStream;
 let peerConnection;
 let dataChannel;
@@ -575,7 +600,7 @@ function setupSocketEvents() {
     } catch (error) {
       logEvent('answer-handling-error', { error: error.message });
       console.error('Error handling answer:', error);
-      updateStatus('Error establishing connection with client. Retrying...', 'error');
+      updateStatus('Error establishing connection with client. Trying again...', 'error');
       
       // Try to recover by restarting the connection
       setTimeout(() => {
@@ -709,39 +734,77 @@ async function setupLocalStream() {
     console.log('Starting media setup...');
     updateStatus('Setting up video chat...');
     
+    // Add explicit logging about browser capabilities
+    console.log('Browser media capabilities:', {
+      mediaDevices: !!navigator.mediaDevices,
+      getUserMedia: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia),
+      browser: navigator.userAgent
+    });
+    
     let stream = null;
     
-    // First attempt: Try to get both audio and video with minimal constraints
+    // First attempt: Try to get both audio and video with explicit constraints
     try {
       console.log('Requesting audio and video...');
+      // Force browser to show permission dialog
       stream = await navigator.mediaDevices.getUserMedia({
         audio: true,
-        video: true
+        video: {
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          facingMode: 'user'
+        }
       });
-      console.log('Successfully got audio and video');
+      console.log('Successfully got audio and video', stream);
     } catch (err) {
-      console.warn('First attempt failed:', err.message);
+      console.warn('First attempt failed:', err.name, err.message);
+      
+      // Special handling for 'Device in use' error
+      if (err.name === 'NotReadableError' && err.message.includes('Device in use')) {
+        console.error('Camera is in use by another application');
+        updateStatus('Camera in use by another app. Please close other camera apps.', 'error');
+        logEvent('camera-in-use-error');
+        
+        // Create an alert message in the local video overlay
+        if (localOverlay) {
+          localOverlay.innerHTML = '<div style="padding: 10px; color: #fff; background: rgba(255,0,0,0.7); border-radius: 5px">' +
+            '<strong>Camera in use by another application</strong><br>' +
+            'Please close other applications using your camera:<br>' +
+            '• Other browser tabs/windows<br>' +
+            '• Video conferencing apps<br>' +
+            '• Camera apps or utilities<br>' +
+            'Then refresh this page.</div>';
+          localOverlay.style.display = 'flex';
+        }
+      }
       
       // Second attempt: Try just audio
       try {
         console.log('Trying audio only...');
         updateStatus('Video unavailable. Trying audio only.', 'warning');
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+          video: false
+        });
         console.log('Successfully got audio only');
       } catch (audioErr) {
-        console.warn('Audio attempt failed:', audioErr.message);
+        console.warn('Audio attempt failed:', audioErr.name, audioErr.message);
         
-        // Third attempt: Try just video
+        // Third attempt: Try just video with simpler constraints
         try {
-          console.log('Trying video only...');
+          console.log('Trying video only with basic constraints...');
           updateStatus('Audio unavailable. Trying video only.', 'warning');
-          stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: true });
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: false,
+            video: true
+          });
           console.log('Successfully got video only');
         } catch (videoErr) {
-          console.warn('Video attempt failed:', videoErr.message);
+          console.warn('Video attempt failed:', videoErr.name, videoErr.message);
           // Final fallback: Empty stream
           console.log('Creating empty stream as fallback');
           stream = new MediaStream();
+          updateStatus('No media access. Text chat only.', 'warning');
         }
       }
     }
@@ -933,7 +996,7 @@ async function createPeerConnection() {
       }
     };
     
-    // Monitor ICE gathering state
+    // Handle ICE gathering state
     peerConnection.onicegatheringstatechange = () => {
       console.log('ICE gathering state:', peerConnection.iceGatheringState);
       if (peerConnection.iceGatheringState === 'complete') {
@@ -959,10 +1022,7 @@ async function createPeerConnection() {
           remoteOverlay.textContent = '';
           
           // Enable chat features once connected
-          if (dataChannel && dataChannel.readyState === 'open') {
-            chatInput.disabled = false;
-            sendMessageBtn.disabled = false;
-          }
+          enableChatFeatures();
           
           // Critical: Start periodic connection maintenance to keep media flowing
           startConnectionMaintenance();
@@ -1019,7 +1079,28 @@ async function createPeerConnection() {
     
     // Track event - when remote tracks are added - CRITICAL FOR MEDIA RECEPTION
     peerConnection.ontrack = (event) => {
-      console.log('Remote track received:', event.track.kind, event.track.id);
+      console.log('>>> Received remote track event:', event);
+      if (event.streams && event.streams[0]) {
+        console.log('>>> Remote stream:', event.streams[0]);
+        const audioTracks = event.streams[0].getAudioTracks();
+        console.log('>>> Remote audio tracks:', audioTracks);
+        if (audioTracks.length > 0) {
+          console.log(`>>> Remote audio track[0] - Kind: ${audioTracks[0].kind}, ID: ${audioTracks[0].id}, Enabled: ${audioTracks[0].enabled}, ReadyState: ${audioTracks[0].readyState}, Muted: ${audioTracks[0].muted}`);
+        }
+        const videoTracks = event.streams[0].getVideoTracks();
+        console.log('>>> Remote video tracks:', videoTracks);
+         if (videoTracks.length > 0) {
+           console.log(`>>> Remote video track[0] - Kind: ${videoTracks[0].kind}, ID: ${videoTracks[0].id}, Enabled: ${videoTracks[0].enabled}, ReadyState: ${videoTracks[0].readyState}, Muted: ${videoTracks[0].muted}`);
+         }
+      } else {
+          console.log('>>> event.streams[0] is not available.');
+      }
+       if(event.track) {
+           console.log(`>>> Event track details - Kind: ${event.track.kind}, ID: ${event.track.id}, Enabled: ${event.track.enabled}, ReadyState: ${event.track.readyState}, Muted: ${event.track.muted}`);
+       } else {
+           console.log('>>> event.track is not available.');
+       }
+      console.log('Received remote track:', event.track.kind);
       
       // Clear connection timeout since we're receiving media
       clearConnectionTimeouts();
@@ -1419,13 +1500,13 @@ async function createPeerConnection() {
       }
     };
     
-    // Handle signaling state changes
+    // Signaling state changes
     peerConnection.onsignalingstatechange = () => {
       signalStateSpan.textContent = peerConnection.signalingState;
       console.log('Signaling state:', peerConnection.signalingState);
     };
     
-    // Handle connection state changes
+    // Connection state changes
     peerConnection.onconnectionstatechange = () => {
       console.log('Connection state:', peerConnection.connectionState);
       switch(peerConnection.connectionState) {
@@ -1485,12 +1566,8 @@ function setupDataChannel(channel) {
     logEvent('data-channel-open');
     console.log('Data channel opened');
     
-    // Enable chat input once data channel is open
-    if (peerConnection && (peerConnection.iceConnectionState === 'connected' || 
-        peerConnection.iceConnectionState === 'completed')) {
-      chatInput.disabled = false;
-      sendMessageBtn.disabled = false;
-    }
+    // Enable chat features now that data channel is open
+    enableChatFeatures();
   };
   
   channel.onclose = () => {
@@ -1576,6 +1653,43 @@ function setupEventListeners() {
         '<i class="fas fa-crown"></i> Hide Host Options';
     });
   }
+  
+  // Become Host button - handle password verification
+  if (becomeHostBtn && hostPasswordInput && hostStatusDiv) {
+    becomeHostBtn.addEventListener('click', () => {
+      const password = hostPasswordInput.value.trim();
+      if (!password) {
+        updateHostStatus('Please enter the host password', 'error'); 
+        return;
+      }
+
+      // Disable the button and show loading state
+      becomeHostBtn.disabled = true; 
+      updateHostStatus('Authenticating...', 'info'); 
+      hostAuthenticationInProgress = true; 
+
+      // Send authentication request to server
+      socket.emit('authenticate-host', { password: password }); 
+    });
+  }
+  
+  // Handle host authentication response
+  socket.on('host-auth-response', (data) => {
+    if (hostStatusDiv) {
+      if (data.success) {
+        hostStatusDiv.textContent = 'Host authentication successful';
+        hostStatusDiv.style.color = 'green';
+        
+        // Show host controls
+        if (hostControlsDiv) {
+          hostControlsDiv.style.display = 'flex';
+        }
+      } else {
+        hostStatusDiv.textContent = data.message || 'Authentication failed';
+        hostStatusDiv.style.color = 'red';
+      }
+    }
+  });
   // Toggle audio muting
   toggleAudioBtn.addEventListener('click', () => {
     if (localStream) {
@@ -1703,6 +1817,18 @@ function setupEventListeners() {
   } else {
     // Log if the close button wasn't found, helps debugging
     if (!closeDebugBtn) console.warn('Debug modal close button not found.');
+  }
+
+  // Fullscreen button event listeners
+  const localFullscreenBtn = document.getElementById('local-fullscreen-btn');
+  const remoteFullscreenBtn = document.getElementById('remote-fullscreen-btn');
+  
+  if (localFullscreenBtn) {
+    localFullscreenBtn.addEventListener('click', () => toggleFullscreen('local'));
+  }
+  
+  if (remoteFullscreenBtn) {
+    remoteFullscreenBtn.addEventListener('click', () => toggleFullscreen('remote'));
   }
 
   // Listener for running diagnostics (if the button exists)
@@ -2304,17 +2430,17 @@ function setupHostAuthentication() {
     becomeHostBtn.addEventListener('click', () => {
       const password = hostPasswordInput.value.trim();
       if (!password) {
-        updateHostStatus('Please enter the host password', 'error');
+        updateHostStatus('Please enter the host password', 'error'); 
         return;
       }
-      
+
       // Disable the button and show loading state
-      becomeHostBtn.disabled = true;
-      updateHostStatus('Authenticating...', 'info');
-      hostAuthenticationInProgress = true;
-      
+      becomeHostBtn.disabled = true; 
+      updateHostStatus('Authenticating...', 'info'); 
+      hostAuthenticationInProgress = true; 
+
       // Send authentication request to server
-      socket.emit('authenticate-host', { password: password });
+      socket.emit('verify-host-password', { password: password }); 
     });
   }
   
@@ -2588,5 +2714,217 @@ init = function() {
   initializeHost();
 };
 
+// Toggle fullscreen function for video elements
+function toggleFullscreen(videoType) {
+  const wrapper = videoType === 'local' ? 
+    document.querySelector('.video-wrapper.local') : 
+    document.getElementById('remote-video-wrapper');
+  
+  const button = videoType === 'local' ? 
+    document.getElementById('local-fullscreen-btn') : 
+    document.getElementById('remote-fullscreen-btn');
+    
+  const icon = button.querySelector('i');
+    
+  if (!wrapper) return;
+  
+  if (!document.fullscreenElement) {
+    // Enter fullscreen
+    if (wrapper.requestFullscreen) {
+      wrapper.requestFullscreen();
+    } else if (wrapper.webkitRequestFullscreen) {
+      wrapper.webkitRequestFullscreen();
+    } else if (wrapper.msRequestFullscreen) {
+      wrapper.msRequestFullscreen();
+    }
+    
+    // Update button icon
+    if (icon) icon.className = 'fas fa-compress';
+    wrapper.classList.add('fullscreen');
+  } else {
+    // Exit fullscreen
+    if (document.exitFullscreen) {
+      document.exitFullscreen();
+    } else if (document.webkitExitFullscreen) {
+      document.webkitExitFullscreen();
+    } else if (document.msExitFullscreen) {
+      document.msExitFullscreen();
+    }
+    
+    // Update button icon
+    if (icon) icon.className = 'fas fa-expand';
+    wrapper.classList.remove('fullscreen');
+  }
+}
+
+// Listen for fullscreen change event
+document.addEventListener('fullscreenchange', () => {
+  if (!document.fullscreenElement) {
+    // Reset all icons when exiting fullscreen
+    const fullscreenBtns = document.querySelectorAll('.fullscreen-btn');
+    fullscreenBtns.forEach(btn => {
+      const icon = btn.querySelector('i');
+      if (icon) icon.className = 'fas fa-expand';
+    });
+    
+    // Remove fullscreen class from all wrappers
+    const videoWrappers = document.querySelectorAll('.video-wrapper');
+    videoWrappers.forEach(wrapper => wrapper.classList.remove('fullscreen'));
+  }
+});
+
 // Start the app when the DOM is loaded
 document.addEventListener('DOMContentLoaded', init);
+
+// Add detailed logging to pinpoint the cause of premature peer connection closure and enhance track logging.
+peerConnection.onconnectionstatechange = () => {
+    const state = peerConnection.connectionState;
+    logEvent(`Connection state: ${state}`);
+    updateWebRTCStateDisplay();
+
+    if (['disconnected', 'failed', 'closed'].includes(state)) {
+        logWarn(`Connection state is ${state}. Preparing to close peer connection.`); // ADDED log
+        closePeerConnection(`Connection state changed to ${state}`); // Pass reason
+    } else if (state === 'connected') {
+        logSuccess('Peers successfully connected!'); // Use logSuccess for clarity
+        // Ensure remote video is visible if stream exists
+        if (remoteVideo.srcObject) {
+            document.getElementById('remote-video-wrapper').style.display = 'block';
+        }
+    }
+};
+
+// Enhance logging in ontrack
+peerConnection.ontrack = (event) => {
+    if (event.streams && event.streams[0]) {
+        const trackKind = event.track.kind; // 'audio' or 'video'
+        logInfo(`>>> Received remote track: ${trackKind} [ID: ${event.track.id}]`); // ENHANCED log
+
+        if (!remoteStream) {
+            logInfo('Creating new MediaStream for remote tracks.');
+            remoteStream = new MediaStream();
+            remoteVideo.srcObject = remoteStream;
+             // Ensure wrapper is visible only AFTER stream is assigned
+            document.getElementById('remote-video-wrapper').style.display = 'block'; 
+        }
+
+        if (remoteStream.getTracks().some(t => t.id === event.track.id)) {
+            logWarn(`Track ${trackKind} [ID: ${event.track.id}] already present in remote stream. Skipping add.`);
+            return;
+        }
+
+        logInfo(`Adding ${trackKind} track [ID: ${event.track.id}] to remote stream.`);
+        remoteStream.addTrack(event.track);
+
+        // Attempt to play video automatically
+        remoteVideo.play().catch(e => logError(`Error auto-playing remote video: ${e.message}`));
+
+    } else {
+        logWarn('Received track event without associated stream data.');
+    }
+};
+
+// Modify client-left handler logging
+socket.on('client-left', (clientId) => {
+    logWarn(`Received 'client-left' event for ID: ${clientId}`); // ENHANCED log level
+    const waitingIndex = waitingClients.indexOf(clientId);
+    if (waitingIndex > -1) {
+        logInfo(`Removing client ${clientId} from waiting list.`);
+        waitingClients.splice(waitingIndex, 1);
+        updateClientListUI(); // Update UI if needed
+    }
+
+    if (clientId === currentPartnerId) {
+        logWarn(`Partner ${clientId} disconnected via socket event. Closing connection.`); // Use logWarn
+        closePeerConnection(`Received client-left for partner ${clientId}`); // Pass reason
+    } else {
+        logInfo(`Client ${clientId} left, but was not the current partner (${currentPartnerId || 'none'}).`);
+    }
+}); // Fixed syntax error: changed }; back to });
+
+// Modify closePeerConnection to accept and log a reason
+function closePeerConnection(reason = "No reason specified") { // ADDED reason parameter
+    if (!peerConnection) {
+        // logWarn('closePeerConnection called but no active peer connection exists.'); // Avoid log spam if called repeatedly
+        return;
+    }
+    // Prevent closing if already closed or closing
+    if (['closed', 'closing'].includes(peerConnection.connectionState)) {
+        // logWarn(`closePeerConnection called (Reason: ${reason}) but connection is already ${peerConnection.connectionState}.`);
+        return;
+    }
+    logWarn(`Initiating peer connection cleanup. Reason: ${reason}`); // MODIFIED log
+
+    isClosingConnection = true; // Set flag
+
+    // Stop all local tracks associated with this connection
+    // We might not want to stop the original localStream tracks here, only the senders
+    // localStream?.getTracks().forEach(track => track.stop()); // Reconsider this line
+    peerConnection.getSenders().forEach(sender => {
+        if (sender.track) {
+            // sender.track.stop(); // Stopping the track might affect the local preview
+            logDebug(`Removing track [${sender.track.kind}: ${sender.track.id}] from sender.`);
+            // peerConnection.removeTrack(sender); // This might be necessary depending on strategy
+        }
+    });
+
+    // Nullify event handlers to prevent errors after closing
+    peerConnection.ontrack = null;
+    peerConnection.onicecandidate = null;
+    peerConnection.oniceconnectionstatechange = null;
+    peerConnection.onconnectionstatechange = null;
+    peerConnection.ondatachannel = null;
+
+    if (dataChannel) {
+        dataChannel.onmessage = null;
+        dataChannel.onopen = null;
+        dataChannel.onclose = () => { // Ensure close event logs reason if possible
+             logEvent('data-channel-closed', { reason: `PeerConnection closed: ${reason}` });
+             dataChannel = null; // Nullify after close event
+        };
+        if (dataChannel.readyState !== 'closing' && dataChannel.readyState !== 'closed') {
+            logDebug(`Closing data channel (state: ${dataChannel.readyState})`);
+            dataChannel.close();
+        } else {
+            dataChannel = null; // Nullify if already closed/closing
+        }
+    }
+
+    // Close the connection
+    logDebug(`Closing RTCPeerConnection (state: ${peerConnection.connectionState})`);
+    peerConnection.close();
+    // peerConnection = null; // Nullify should happen perhaps on 'closed' state event?
+
+    logInfo(`Peer connection cleanup initiated. Triggered by: ${reason}`); // MODIFIED log
+    updateWebRTCStateDisplay();
+
+    // Reset UI elements
+    if (remoteVideo.srcObject) {
+        logDebug('Stopping remote tracks and clearing remote video source.');
+        remoteVideo.srcObject.getTracks().forEach(track => track.stop());
+        remoteVideo.srcObject = null;
+    }
+    document.getElementById('remote-video-wrapper').style.display = 'none';
+    disableChatFeatures();
+    displayMessage('System', 'Disconnected from peer.');
+
+    // Reset global state related to connection
+    currentPartnerId = null;
+    if (remoteStream) {
+        logDebug('Clearing remote stream reference.');
+        remoteStream.getTracks().forEach(track => track.stop()); // Ensure tracks are stopped
+        remoteStream = null;
+    }
+
+    // Check for next client AFTER a short delay to allow cleanup
+    setTimeout(() => {
+        isClosingConnection = false; // Reset flag
+        peerConnection = null; // Nullify peerConnection object after cleanup
+        logDebug('Peer connection object nullified.');
+         if (isHost) {
+            logInfo('Host checking for next client after disconnection.');
+            checkForWaitingClients();
+         }
+    }, 100); // Delay cleanup completion
+
+}
