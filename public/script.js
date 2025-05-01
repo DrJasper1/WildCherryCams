@@ -2456,12 +2456,11 @@ function setupHostAuthentication() {
       
       // Log authentication attempt for debugging (v1.2.1)
       console.log(`[v1.2.1] Sending host authentication request with password: ${password}`);
-      logInfo(`[v1.2.1] Attempting host authentication with password: ${password}`);
-
+      
       // Add timeout to prevent getting stuck on "Authenticating..."
       window.authTimeoutId = setTimeout(() => {
         if (hostAuthenticationInProgress) {
-          logWarn('[v1.2.1] Host authentication timed out after 5 seconds');
+          console.warn('[v1.2.1] Host authentication timed out after 5 seconds');
           hostAuthenticationInProgress = false;
           becomeHostBtn.disabled = false;
           updateHostStatus('Authentication timed out. Please try again.', 'error');
