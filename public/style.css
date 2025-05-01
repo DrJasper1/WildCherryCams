@@ -284,8 +284,8 @@ body::before {
     flex-direction: column;
     gap: 10px;
     width: 65%;
-    min-height: 400px;
-    max-height: calc(100vh - 200px);
+    min-height: 350px;
+    max-height: calc(100vh - 230px);
     flex: 1 1 500px;
     background: rgba(0, 0, 0, 0.2);
     border-radius: 15px;
@@ -302,7 +302,7 @@ body::before {
     border-radius: 15px;
     background-color: #000;
     height: 0;
-    padding-bottom: 45%; /* Reduced aspect ratio to fit both cameras */
+    padding-bottom: 40%; /* Further reduced aspect ratio to fit both cameras */
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.4);
     border: 2px solid rgba(255, 105, 180, 0.3);
     transition: all 0.3s ease;
@@ -379,8 +379,8 @@ video {
 /* Chat section */
 .chat-container {
     width: 35%;
-    height: calc(100vh - 210px);
-    max-height: calc(100vh - 210px);
+    height: calc(100vh - 240px);
+    max-height: calc(100vh - 240px);
     background: rgba(0, 0, 0, 0.2);
     border-radius: 15px;
     display: flex;
