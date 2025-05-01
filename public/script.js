@@ -1565,6 +1565,11 @@ function setupEventListeners() {
       const isCurrentlyVisible = hostAuthContainer.style.display !== 'none';
       hostAuthContainer.style.display = isCurrentlyVisible ? 'none' : 'flex';
       
+      // Also toggle host controls visibility if they exist
+      if (hostControlsDiv) {
+        hostControlsDiv.style.display = isCurrentlyVisible ? 'none' : 'flex';
+      }
+      
       // Update button text based on visibility
       showHostLoginBtn.innerHTML = isCurrentlyVisible ? 
         '<i class="fas fa-crown"></i> Host Options' : 
