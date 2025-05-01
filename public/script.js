@@ -1459,6 +1459,7 @@ async function createPeerConnection() {
     // Handle ICE candidates
     peerConnection.onicecandidate = event => {
       if (event.candidate && partnerId) {
+        // Send immediately without waiting
         socket.emit('ice-candidate', {
           candidate: event.candidate,
           to: partnerId
@@ -1657,19 +1658,7 @@ function setupEventListeners() {
   // Become Host button - handle password verification
   if (becomeHostBtn && hostPasswordInput && hostStatusDiv) {
     becomeHostBtn.addEventListener('click', () => {
-      const password = hostPasswordInput.value.trim();
-      if (!password) {
-        updateHostStatus('Please enter the host password', 'error'); 
-        return;
-      }
-
-      // Disable the button and show loading state
-      becomeHostBtn.disabled = true; 
-      updateHostStatus('Authenticating...', 'info'); 
-      hostAuthenticationInProgress = true; 
-
-      // Send authentication request to server
-      socket.emit('authenticate-host', { password: password }); 
+      authenticateAsHost();
     });
   }
   
@@ -2452,19 +2441,7 @@ function setupHostAuthentication() {
   // Add event listener for the become host button
   if (becomeHostBtn) {
     becomeHostBtn.addEventListener('click', () => {
-      const password = hostPasswordInput.value.trim();
-      if (!password) {
-        updateHostStatus('Please enter the host password', 'error'); 
-        return;
-      }
-
-      // Disable the button and show loading state
-      becomeHostBtn.disabled = true; 
-      updateHostStatus('Authenticating...', 'info'); 
-      hostAuthenticationInProgress = true; 
-
-      // Send authentication request to server
-      socket.emit('authenticate-host', { password: password }); 
+      authenticateAsHost();
     });
   }
   
