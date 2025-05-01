@@ -607,6 +607,11 @@ video {
     display: block;
 }
 
+/* Hidden class */
+.hidden {
+    display: none !important;
+}
+
 /* Animation for connecting state */
 .connecting {
     animation: pulse 1.5s infinite;

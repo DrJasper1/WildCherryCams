@@ -1558,6 +1558,19 @@ function setupDataChannel(channel) {
 
 // Set up event listeners for UI elements
 function setupEventListeners() {
+  // Host login toggle button
+  if (showHostLoginBtn) {
+    showHostLoginBtn.addEventListener('click', () => {
+      // Toggle the host authentication container visibility
+      hostAuthContainer.classList.toggle('hidden');
+      
+      // Update button text based on visibility
+      const isVisible = !hostAuthContainer.classList.contains('hidden');
+      showHostLoginBtn.innerHTML = isVisible ? 
+        '<i class="fas fa-crown"></i> Hide Host Options' : 
+        '<i class="fas fa-crown"></i> Host Options';
+    });
+  }
   // Toggle audio muting
   toggleAudioBtn.addEventListener('click', () => {
     if (localStream) {
@@ -2280,19 +2293,6 @@ function setupUI() {
 
 // Host authentication and control functions
 function setupHostAuthentication() {
-  // Host login toggle button
-  if (showHostLoginBtn) {
-    showHostLoginBtn.addEventListener('click', () => {
-      // Toggle the host authentication container visibility
-      hostAuthContainer.classList.toggle('hidden');
-      
-      // Update button text based on visibility
-      const isVisible = !hostAuthContainer.classList.contains('hidden');
-      showHostLoginBtn.innerHTML = isVisible ? 
-        '<i class="fas fa-crown"></i> Hide Host Options' : 
-        '<i class="fas fa-crown"></i> Host Options';
-    });
-  }
   
   // Add event listener for the become host button
   if (becomeHostBtn) {
