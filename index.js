@@ -452,43 +452,56 @@ io.on('connection', (socket) => {
   socket.on('authenticate-host', (data) => {
     try {
       const { password } = data;
-      console.log(`⭐ HOST AUTHENTICATION ATTEMPT v1.2.0 - from ${socket.id}`);
-      console.log(`⭐ Received password: "${password}" vs expected "${HOST_PASSWORD}"`);
+      console.log(`\n\n==== HOST AUTH REQUEST v1.2.2 ====`);
+      console.log(`FROM: ${socket.id}`);
+      console.log(`PASSWORD: "${password}" (Expected: "${HOST_PASSWORD}")`);
+      console.log(`CURRENT HOST: ${currentHostId || 'None'}`);
 
+      // ALWAYS send back SOME response so client doesn't time out
       if (currentHostId && currentHostId !== socket.id) {
-        console.log(`Host role already taken by ${currentHostId}. Rejecting ${socket.id}.`);
+        console.log(`RESULT: REJECTED - Host role already taken`);
         socket.emit('auth-result', { success: false, message: 'Host role already taken.' });
-        console.log(`⭐ Sent auth-result (failure) to ${socket.id}`);
         return;
       }
 
       if (password === HOST_PASSWORD) {
-        console.log(`⭐ Host authentication SUCCESSFUL for ${socket.id}`);
+        console.log(`RESULT: SUCCESS - Password correct`);
         currentHostId = socket.id;
         socket.emit('auth-result', { success: true, hostId: currentHostId });
-        console.log(`⭐ Sent auth-result (success) to ${socket.id}`);
         
         // Notify others that host is now available
         socket.broadcast.emit('host-status', { isHostAvailable: true });
 
-        // If a client was waiting, connect them now
-        // TODO: Better waiting queue logic might be needed for multiple waiters
-        // For now, just check if a client is actively connected
         if (!connectedClientId) {
           console.log(`Host ${currentHostId} is now available. Waiting for client.`);
-          // Any new connection will now see host-status true and connect
         }
-
       } else {
-        console.log(`⭐ Host authentication FAILED for ${socket.id} - Password mismatch`);
+        console.log(`RESULT: FAILED - Password incorrect`);
         socket.emit('auth-result', { success: false, message: 'Incorrect password.' });
-        console.log(`⭐ Sent auth-result (failure) to ${socket.id}`);
       }
+      console.log(`==== END HOST AUTH REQUEST ====\n\n`);
     } catch (error) {
-      console.error(`❌ Error during host authentication for ${socket.id}:`, error);
+      console.error(`AUTH ERROR for ${socket.id}:`, error);
+      // Still need to send response
       socket.emit('auth-result', { success: false, message: 'Server error during authentication.' });
-      console.log(`⭐ Sent auth-result (error) to ${socket.id}`);
     }
+  });
+
+  // --- Echo Test for v1.2.3 --- 
+  socket.on('echo-test', (data) => {
+    console.log(`\n==== ECHO TEST v1.2.3 ====`);
+    console.log(`FROM: ${socket.id}`);
+    console.log(`DATA: ${JSON.stringify(data)}`);
+    console.log(`SOCKET STATE: ${socket.connected ? 'Connected' : 'Disconnected'}`);
+    console.log(`==== END ECHO TEST ====\n`);
+    
+    // Send response back to client
+    socket.emit('echo-response', {
+      received: true,
+      originalMessage: data ? data.message : 'No message',
+      serverTime: new Date().toISOString(),
+      version: 'v1.2.3'
+    });
   });
 
   // --- Host Actions --- 
