@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="ngrok-skip-browser-warning" content="true">
+    
+    <!-- Bypass ngrok warning screen -->
+    <script>
+      // Set a custom User-Agent for all fetch requests
+      const originalFetch = window.fetch;
+      window.fetch = function(url, options = {}) {
+        if (!options.headers) options.headers = {};
+        options.headers['ngrok-skip-browser-warning'] = 'true';
+        options.headers['User-Agent'] = 'video-chat-app-custom-browser';
+        return originalFetch(url, options);
+      };
+
+      // Try to redirect automatically if on warning page
+      if (document.title.includes('ngrok') && window.location.href.includes('ngrok-free.app')) {
+        window.location.href = window.location.href + '?bypassed=true';
+      }
+    </script>
+    <title>Simple Video Chat</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Status section -->
+        <div class="status-container">
+            <div id="status" class="status">Connecting...</div>
+            <div id="connection-id" class="sub-status"></div>
+        </div>
+        
+        <!-- Host Authentication -->
+        <div id="host-auth-container" class="host-auth-container hidden">
+            <input type="password" id="host-password" placeholder="Enter host password" class="host-password">
+            <button id="become-host-btn" class="host-btn">Become Host</button>
+            <div id="host-status" class="host-status"></div>
+        </div>
+        
+        <!-- Host Controls (initially hidden) -->
+        <div id="host-controls" class="host-controls hidden">
+            <div class="host-label">HOST CONTROLS</div>
+            <div class="client-info" id="connected-client-info">No client connected</div>
+            <div class="host-actions">
+                <button id="kick-client-btn" class="host-action-btn" disabled>
+                    <i class="fas fa-user-slash"></i> Kick Client
+                </button>
+                <button id="ban-client-btn" class="host-action-btn" disabled>
+                    <i class="fas fa-ban"></i> Ban Client (IP)
+                </button>
+            </div>
+        </div>
+        
+        <!-- Main content area -->
+        <div class="main-content">
+            <!-- Video container -->
+            <div class="video-container">
+                <div class="video-wrapper local">
+                    <video id="localVideo" autoplay muted playsinline></video>
+                    <div class="video-label">You</div>
+                    <div class="video-stats" id="local-stats"></div>
+                    <div class="video-overlay" id="local-overlay"></div>
+                </div>
+                
+                <div class="video-wrapper remote">
+                    <video id="remoteVideo" autoplay playsinline></video>
+                    <div class="video-label">Stranger</div>
+                    <div class="video-stats" id="remote-stats"></div>
+                    <div class="video-overlay" id="remote-overlay">Waiting for partner</div>
+                </div>
+            </div>
+            
+            <!-- Text chat -->
+            <div class="chat-container">
+                <div class="chat-header">
+                    <span>Text Chat</span>
+                    <button id="clear-chat" title="Clear chat history">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                </div>
+                <div id="chat-messages" class="chat-messages"></div>
+                <div class="chat-input-container">
+                    <input type="text" id="chat-input" placeholder="Type a message..." disabled>
+                    <button id="send-message" class="send-btn" disabled>
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Control buttons -->
+        <div class="controls">
+            <button id="toggle-audio" class="control-btn">
+                <i class="fas fa-microphone"></i>
+                <span class="label">Mute Audio</span>
+            </button>
+            
+            <button id="toggle-video" class="control-btn">
+                <i class="fas fa-video"></i>
+                <span class="label">Hide Video</span>
+            </button>
+            
+            <button id="toggle-chat" class="control-btn">
+                <i class="fas fa-comments"></i>
+                <span class="label">Hide Chat</span>
+            </button>
+            
+            <button id="next" class="control-btn next-btn">
+                <i class="fas fa-forward"></i>
+                <span class="label">Next Person</span>
+            </button>
+        </div>
+        
+        <!-- Connection status panel -->
+        <div class="debug-panel">
+            <div id="connection-details">
+                <span>WebRTC State: <strong id="rtc-state">New</strong></span>
+                <span>ICE: <strong id="ice-state">New</strong></span>
+                <span>Signal: <strong id="signal-state">New</strong></span>
+            </div>
+            <div class="debug-actions">
+                <button id="refresh-btn" class="small-btn" title="Refresh connection">
+                    <i class="fas fa-sync"></i>
+                </button>
+                <button id="show-debug" class="small-btn" title="Show debug info">
+                    <i class="fas fa-bug"></i>
+                    <span>Show Debug</span>
+                </button>
+            </div>
+        </div>
+        
+        <!-- Debug modal (hidden by default) -->
+        <div id="debug-modal" class="modal hidden">
+            <div class="modal-content">
+                <span class="close-btn">&times;</span>
+                <h2>Connection Diagnostics</h2>
+                <pre id="debug-info">Loading...</pre>
+                <h3>Connection Events</h3>
+                <div id="event-log" class="event-log"></div>
+                <div class="modal-actions">
+                    <button id="copy-debug" class="debug-btn">Copy Info</button>
+                    <button id="run-diagnostic" class="debug-btn">Run Diagnostic</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="debug.js"></script>
+  <script src="script.js"></script>
+  
+  <!-- Add this for icons if not already included -->
+  <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+</body>
+</html>

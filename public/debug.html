@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Video Chat Debug</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; background: #f0f0f0; }
+    .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    button { padding: 8px 16px; margin: 5px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; }
+    button:hover { background: #45a049; }
+    pre { background: #f5f5f5; padding: 10px; border-radius: 4px; overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Video Chat Debug Panel</h1>
+    <div>
+      <button id="refreshBtn">Refresh Data</button>
+      <button id="resetBtn">Reset All Connections</button>
+    </div>
+    <h2>System Status</h2>
+    <pre id="status">Loading...</pre>
+    
+    <h2>Connected Users</h2>
+    <pre id="users">Loading...</pre>
+    
+    <h2>Actions</h2>
+    <div>
+      <input type="text" id="user1" placeholder="User ID 1" />
+      <input type="text" id="user2" placeholder="User ID 2" />
+      <button id="pairBtn">Force Pair Users</button>
+    </div>
+  </div>
+
+  <script>
+    const refreshBtn = document.getElementById('refreshBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const pairBtn = document.getElementById('pairBtn');
+    const statusEl = document.getElementById('status');
+    const usersEl = document.getElementById('users');
+    
+    // Load initial data
+    fetchData();
+    
+    // Set up event listeners
+    refreshBtn.addEventListener('click', fetchData);
+    resetBtn.addEventListener('click', resetConnections);
+    pairBtn.addEventListener('click', pairUsers);
+    
+    // Functions
+    function fetchData() {
+      fetch('/debug/users')
+        .then(response => response.json())
+        .then(data => {
+          statusEl.textContent = JSON.stringify({
+            connections: data.connections,
+            waitingUsers: data.waitingUsers.length,
+            activePairs: Object.keys(data.activeConnections).length / 2
+          }, null, 2);
+          
+          usersEl.textContent = JSON.stringify(data, null, 2);
+        })
+        .catch(error => {
+          statusEl.textContent = 'Error fetching data: ' + error.message;
+        });
+    }
+    
+    function resetConnections() {
+      fetch('/reset')
+        .then(response => response.text())
+        .then(data => {
+          alert('Reset complete: ' + data);
+          fetchData();
+        })
+        .catch(error => {
+          alert('Error: ' + error.message);
+        });
+    }
+    
+    function pairUsers() {
+      const user1 = document.getElementById('user1').value;
+      const user2 = document.getElementById('user2').value;
+      
+      if (!user1 || !user2) {
+        alert('Please enter both user IDs');
+        return;
+      }
+      
+      fetch('/force-pair?user1=' + user1 + '&user2=' + user2)
+        .then((response) => response.text())
+        .then((data) => {
+          alert(data);
+          fetchData();
+        })
+        .catch(error => {
+          alert('Error: ' + error.message);
+        });
+    }
+    
+    // Auto-refresh every 5 seconds
+    setInterval(fetchData, 5000);
+  </script>
+</body>
+</html>

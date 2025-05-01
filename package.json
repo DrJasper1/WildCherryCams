@@ -1,0 +1,28 @@
+{
+  "name": "video-chat-app",
+  "version": "1.0.0",
+  "main": "start.js",
+  "scripts": {
+    "start": "node start.js",
+    "dev": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "webrtc",
+    "video-chat",
+    "omegle-clone"
+  ],
+  "author": "",
+  "license": "ISC",
+  "description": "A peer-to-peer random video chat application like Omegle using WebRTC",
+  "dependencies": {
+    "cloudflared": "^0.7.0",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "fs": "^0.0.1-security",
+    "localtunnel": "^2.0.2",
+    "ngrok": "^5.0.0-beta.2",
+    "path": "^0.12.7",
+    "socket.io": "^4.8.1"
+  }
+}
