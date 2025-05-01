@@ -1562,13 +1562,13 @@ function setupEventListeners() {
   if (showHostLoginBtn) {
     showHostLoginBtn.addEventListener('click', () => {
       // Toggle the host authentication container visibility
-      hostAuthContainer.classList.toggle('hidden');
+      const isCurrentlyVisible = hostAuthContainer.style.display !== 'none';
+      hostAuthContainer.style.display = isCurrentlyVisible ? 'none' : 'flex';
       
       // Update button text based on visibility
-      const isVisible = !hostAuthContainer.classList.contains('hidden');
-      showHostLoginBtn.innerHTML = isVisible ? 
-        '<i class="fas fa-crown"></i> Hide Host Options' : 
-        '<i class="fas fa-crown"></i> Host Options';
+      showHostLoginBtn.innerHTML = isCurrentlyVisible ? 
+        '<i class="fas fa-crown"></i> Host Options' : 
+        '<i class="fas fa-crown"></i> Hide Host Options';
     });
   }
   // Toggle audio muting
