@@ -1673,22 +1673,47 @@ function setupEventListeners() {
     });
   }
   
-  // Handle host authentication response - v1.2.3
+  // Function to check for waiting clients - v1.2.5
+  function checkForWaitingClients() {
+    console.log(`[v1.2.5] Checking for waiting clients...`);
+    if (isHost && socket) {
+      // Ask server for waiting clients
+      socket.emit('get-waiting-clients');
+      console.log(`[v1.2.5] Sent request for waiting clients`);
+      
+      // Announce host availability
+      socket.emit('host-ready');
+      console.log(`[v1.2.5] Announced host is ready`);
+    } else {
+      console.warn(`[v1.2.5] Not host or no socket connection`);
+    }
+  }
+
+  // Handle host authentication response - v1.2.5
   socket.on('auth-result', (data) => {
     // Clear timeout to prevent double-handling
     clearTimeout(window.authTimeoutId);
     
     // Reset authentication state
     hostAuthenticationInProgress = false;
-    becomeHostBtn.disabled = false;
+    if (becomeHostBtn) becomeHostBtn.disabled = false;
     
-    console.log(`[v1.2.3] Received auth-result:`, data);
+    console.log(`[v1.2.5] Received auth-result:`, data);
     
     if (hostStatusDiv) {
       if (data && data.success) {
-        console.log(`[v1.2.3] Host authentication successful`);
-        hostStatusDiv.textContent = 'Host authentication successful';
-        hostStatusDiv.style.color = 'green';
+        // Is this a re-authentication?
+        if (data.alreadyAuthenticated) {
+          console.log(`[v1.2.5] Already authenticated as host`);
+          hostStatusDiv.textContent = data.message || 'Already authenticated as host';
+          hostStatusDiv.style.color = '#3498db'; // Use blue for already authenticated
+        } else {
+          console.log(`[v1.2.5] Host authentication successful`);
+          hostStatusDiv.textContent = 'Host authentication successful';
+          hostStatusDiv.style.color = 'green';
+        }
+        
+        // Set host state
         isHost = true;
         
         // Show host controls
@@ -1697,27 +1722,55 @@ function setupEventListeners() {
         }
         
         // Check for waiting clients
-        if (typeof checkForWaitingClients === 'function') {
-          checkForWaitingClients();
-        } else {
-          console.warn('[v1.2.3] checkForWaitingClients function not found');
+        checkForWaitingClients();
+        
+        // Update the become host button or hide it
+        if (becomeHostBtn) {
+          becomeHostBtn.style.display = 'none'; // Hide the button once authenticated
         }
       } else {
-        console.log(`[v1.2.3] Host authentication failed:`, data ? data.message : 'No response data');
+        console.log(`[v1.2.5] Host authentication failed:`, data ? data.message : 'No response data');
         hostStatusDiv.textContent = data && data.message ? data.message : 'Authentication failed';
         hostStatusDiv.style.color = 'red';
       }
     } else {
-      console.warn('[v1.2.3] hostStatusDiv not found in DOM');
+      console.warn('[v1.2.5] hostStatusDiv not found in DOM');
     }
     
     try {
       // Log the event if function exists
       if (typeof logEvent === 'function') {
-        logEvent('auth-result', { success: data && data.success });
+        logEvent('auth-result', { 
+          success: data && data.success,
+          alreadyAuthenticated: data && data.alreadyAuthenticated
+        });
       }
     } catch (err) {
-      console.warn('[v1.2.3] Error logging event:', err);
+      console.warn('[v1.2.5] Error logging event:', err);
+    }
+  });
+  
+  // Echo test response handler - v1.2.5
+  socket.on('echo-response', (data) => {
+    console.log(`[v1.2.5] Received echo response:`, data);
+    
+    // Show feedback to user about connection status
+    if (hostStatusDiv && hostStatusDiv.textContent.includes('timed out')) {
+      hostStatusDiv.textContent = 'Socket connection working, but authentication timed out. Try again.';
+      hostStatusDiv.style.color = 'orange';
+    }
+    
+    // Log echo response for debugging
+    try {
+      if (typeof logEvent === 'function') {
+        logEvent('echo-response', { 
+          received: true,
+          serverTime: data.serverTime,
+          version: data.version
+        });
+      }
+    } catch (err) {
+      console.warn('[v1.2.5] Error logging echo event:', err);
     }
   });
   
@@ -2456,42 +2509,65 @@ function setupUI() {
 // Host authentication and control functions
 function setupHostAuthentication() {
   
-  // Add event listener for the become host button
+  // Add event listener for the become host button - v1.2.4
   if (becomeHostBtn) {
     becomeHostBtn.addEventListener('click', () => {
-      // Clear any previous authentication attempt
-      clearTimeout(window.authTimeoutId);
-      
-      const password = hostPasswordInput.value.trim();
-      if (!password) {
-        updateHostStatus('Please enter the host password', 'error'); 
+      // Don't allow authentication if we're already a host
+      if (isHost) {
+        console.log(`[v1.2.4] Already authenticated as host. Skipping authentication.`);
+        updateHostStatus('Already authenticated as host', 'success');
         return;
       }
-
-      // Disable the button and show loading state
-      becomeHostBtn.disabled = true; 
+      
+      // Check if socket is connected before attempting auth
+      if (!socket || !socket.connected) {
+        console.warn(`[v1.2.4] Socket not connected, cannot authenticate`);
+        updateHostStatus('Not connected to server. Please refresh the page.', 'error');
+        return;
+      }
+      
+      // Get password (either from input field or prompt)
+      let password = '';
+      if (hostPasswordInput && hostPasswordInput.value.trim()) {
+        password = hostPasswordInput.value.trim();
+      } else {
+        password = prompt('Enter host password:');
+      }
+      
+      if (!password) {
+        updateHostStatus('Please enter the host password', 'error');
+        return;
+      }
+      
+      // Show authenticating state
       updateHostStatus('Authenticating...', 'info'); 
       hostAuthenticationInProgress = true; 
+      becomeHostBtn.disabled = true;
       
-      // Log authentication attempt for debugging (v1.2.3)
-      console.log(`[v1.2.3] Sending host authentication request with password: ${password}`);
+      // Log authentication attempt for debugging (v1.2.4)
+      console.log(`[v1.2.4] Sending host authentication request with password: ${password}`);
+      
+      // Clear any existing timeout
+      if (window.authTimeoutId) {
+        clearTimeout(window.authTimeoutId);
+      }
       
       // Add timeout to prevent getting stuck on "Authenticating..."
       window.authTimeoutId = setTimeout(() => {
         if (hostAuthenticationInProgress) {
-          console.warn('[v1.2.3] Host authentication timed out after 5 seconds');
+          console.warn('[v1.2.4] Host authentication timed out after 8 seconds');
           hostAuthenticationInProgress = false;
           becomeHostBtn.disabled = false;
           updateHostStatus('Authentication timed out. Please try again.', 'error');
           
           // Emit a test event to verify socket connection is working
           socket.emit('echo-test', { message: 'Testing connection from auth timeout' });
-          console.log('[v1.2.3] Sent echo test to verify socket connection');
+          console.log('[v1.2.4] Sent echo test to verify socket connection');
         }
-      }, 5000);
-
-      // Send authentication request to server
-      socket.emit('authenticate-host', { password: password });
+      }, 8000); // Increased timeout period
+      
+      // Send authentication request
+      socket.emit('authenticate-host', { password });
     });
   }
   
