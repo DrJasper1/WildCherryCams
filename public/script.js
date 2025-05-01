@@ -1,3 +1,6 @@
+// Global app version - increment this for each update
+const APP_VERSION = '1.0.1';
+
 // DOM elements
 // Initialize socket.io connection
 let socket;
@@ -2780,52 +2783,166 @@ document.addEventListener('fullscreenchange', () => {
 });
 
 // Start the app when the DOM is loaded
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', () => {
+  // Display version number
+  const versionDisplay = document.createElement('div');
+  versionDisplay.id = 'version-display';
+  versionDisplay.textContent = `v${APP_VERSION}`;
+  versionDisplay.style.position = 'fixed';
+  versionDisplay.style.top = '5px';
+  versionDisplay.style.right = '10px';
+  versionDisplay.style.background = 'rgba(0,0,0,0.6)';
+  versionDisplay.style.color = '#fff';
+  versionDisplay.style.padding = '2px 8px';
+  versionDisplay.style.borderRadius = '10px';
+  versionDisplay.style.fontSize = '12px';
+  versionDisplay.style.zIndex = '9999';
+  document.body.appendChild(versionDisplay);
+  
+  // Initialize application
+  init();
+  
+  // Override console.log to also log to our debug panel
+  const originalConsoleLog = console.log;
+  const originalConsoleWarn = console.warn;
+  const originalConsoleError = console.error;
+  
+  console.log = function(...args) {
+    // Call original console.log
+    originalConsoleLog.apply(console, args);
+    
+    // Also log to our debug panel
+    const message = args.map(arg => 
+      typeof arg === 'object' ? JSON.stringify(arg) : arg
+    ).join(' ');
+    
+    // Use our existing logging function if available
+    if (typeof logInfo === 'function') {
+      logInfo(message);
+    }
+  };
+  
+  console.warn = function(...args) {
+    // Call original console.warn
+    originalConsoleWarn.apply(console, args);
+    
+    // Also log to our debug panel
+    const message = args.map(arg => 
+      typeof arg === 'object' ? JSON.stringify(arg) : arg
+    ).join(' ');
+    
+    // Use our existing logging function if available
+    if (typeof logWarn === 'function') {
+      logWarn(message);
+    }
+  };
+  
+  console.error = function(...args) {
+    // Call original console.error
+    originalConsoleError.apply(console, args);
+    
+    // Also log to our debug panel
+    const message = args.map(arg => 
+      typeof arg === 'object' ? JSON.stringify(arg) : arg
+    ).join(' ');
+    
+    // Use our existing logging function if available
+    if (typeof logError === 'function') {
+      logError(message);
+    }
+  };
+});
 
 // Add detailed logging to host authentication functions on the client
 function authenticateAsHost() {
     const password = hostPasswordInput.value;
     if (!password) {
         console.log('[CLIENT LOG] Host authentication failed: No password provided');
+        updateHostStatus('Please enter the host password', 'error');
         return;
     }
 
     console.log('[CLIENT LOG] Attempting to authenticate as host...');
-    statusDiv.textContent = 'Authenticating...';
-    hostAuthSection.style.display = 'none'; // Hide input after submission
-
+    updateHostStatus('Authenticating...', 'info');
+    hostAuthenticationInProgress = true;
+    
+    // Disable the button while authenticating
+    if (becomeHostBtn) {
+        becomeHostBtn.disabled = true;
+    }
+    
     // Emit authentication event to the server
     console.log('[CLIENT LOG] Emitting authenticate-host event');
-    socket.emit('authenticate-host', { password: password });
+    try {
+        socket.emit('authenticate-host', { password: password });
+    } catch (error) {
+        console.error('[CLIENT LOG] Error sending authentication request:', error);
+        updateHostStatus('Error connecting to server', 'error');
+        resetHostAuthUI();
+        return;
+    }
 
-    // Optional: Add a timeout for authentication feedback
-    const authTimeout = setTimeout(() => {
+    // Set a timeout for authentication feedback
+    window.authTimeout = setTimeout(() => {
         console.log('[CLIENT LOG] Authentication timeout');
-        statusDiv.textContent = 'Authentication timed out';
-        hostAuthSection.style.display = 'block'; // Show input again
-        hostPasswordInput.value = ''; // Clear the password field
+        updateHostStatus('Authentication timed out', 'error');
+        resetHostAuthUI();
     }, 10000); // 10 second timeout
+}
+
+// Helper function to reset the host auth UI
+function resetHostAuthUI() {
+    hostAuthenticationInProgress = false;
+    if (becomeHostBtn) {
+        becomeHostBtn.disabled = false;
+    }
+    if (hostAuthSection) {
+        hostAuthSection.style.display = 'block';
+    }
+    if (hostPasswordInput) {
+        hostPasswordInput.value = '';
+    }
 }
 
 // Event listener for host authentication result
 socket.on('auth-result', (data) => {
     console.log('[CLIENT LOG] Received auth-result event:', data);
-    clearTimeout(authTimeout); // Clear the timeout if response received
+    // Use window.authTimeout to ensure it's the same variable
+    if (window.authTimeout) {
+        clearTimeout(window.authTimeout);
+        window.authTimeout = null;
+    }
+    
+    // Reset host authentication progress flag
+    hostAuthenticationInProgress = false;
+    
     if (data.success) {
         console.log('[CLIENT LOG] Host authentication successful. Host ID:', data.hostId);
-        statusDiv.textContent = 'Authenticated as Host!';
-        statusDiv.style.color = '#2ecc71'; // Green color for success
+        updateHostStatus('Authenticated as Host!', 'success');
         isHost = true;
-        hostAuthSection.style.display = 'none'; // Hide input
-        hostPasswordInput.disabled = true; // Disable password input
-        becomeHostBtn.disabled = true; // Disable become host button
-        hostControlsDiv.style.display = 'block'; // Show host controls
+        
+        // Update UI
+        if (hostAuthSection) hostAuthSection.style.display = 'none';
+        if (hostPasswordInput) hostPasswordInput.disabled = true;
+        if (becomeHostBtn) becomeHostBtn.disabled = true;
+        if (hostControlsDiv) hostControlsDiv.style.display = 'block';
+        
+        // Create peer connection as host immediately
+        console.log('Creating peer connection as host');
+        createPeerConnection();
+        
+        // Actively check for waiting clients
+        console.log('Host checking for waiting clients');
+        socket.emit('check-waiting-clients');
     } else {
         console.log('[CLIENT LOG] Host authentication failed:', data.message);
-        statusDiv.textContent = `Authentication Failed: ${data.message}`;
-        statusDiv.style.color = '#e74c3c'; // Red color for failure
-        hostAuthSection.style.display = 'block'; // Show input again
-        hostPasswordInput.value = ''; // Clear the password field
+        updateHostStatus(`Authentication Failed: ${data.message}`, 'error');
+        resetHostAuthUI();
         isHost = false;
     }
+});
+
+// Add listener for server log messages (will be added by server)
+socket.on('server-log', (message) => {
+    console.log(`[SERVER] ${message}`);
 });
