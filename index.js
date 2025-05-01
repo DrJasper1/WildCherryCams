@@ -452,18 +452,22 @@ io.on('connection', (socket) => {
   socket.on('authenticate-host', (data) => {
     try {
       const { password } = data;
-      console.log(`Host authentication attempt from ${socket.id}`);
+      console.log(`⭐ HOST AUTHENTICATION ATTEMPT v1.2.0 - from ${socket.id}`);
+      console.log(`⭐ Received password: "${password}" vs expected "${HOST_PASSWORD}"`);
 
       if (currentHostId && currentHostId !== socket.id) {
         console.log(`Host role already taken by ${currentHostId}. Rejecting ${socket.id}.`);
         socket.emit('auth-result', { success: false, message: 'Host role already taken.' });
+        console.log(`⭐ Sent auth-result (failure) to ${socket.id}`);
         return;
       }
 
       if (password === HOST_PASSWORD) {
-        console.log(`Host authentication successful for ${socket.id}`);
+        console.log(`⭐ Host authentication SUCCESSFUL for ${socket.id}`);
         currentHostId = socket.id;
         socket.emit('auth-result', { success: true, hostId: currentHostId });
+        console.log(`⭐ Sent auth-result (success) to ${socket.id}`);
+        
         // Notify others that host is now available
         socket.broadcast.emit('host-status', { isHostAvailable: true });
 
@@ -476,12 +480,14 @@ io.on('connection', (socket) => {
         }
 
       } else {
-        console.log(`Host authentication failed for ${socket.id}`);
+        console.log(`⭐ Host authentication FAILED for ${socket.id} - Password mismatch`);
         socket.emit('auth-result', { success: false, message: 'Incorrect password.' });
+        console.log(`⭐ Sent auth-result (failure) to ${socket.id}`);
       }
     } catch (error) {
       console.error(`❌ Error during host authentication for ${socket.id}:`, error);
       socket.emit('auth-result', { success: false, message: 'Server error during authentication.' });
+      console.log(`⭐ Sent auth-result (error) to ${socket.id}`);
     }
   });
 

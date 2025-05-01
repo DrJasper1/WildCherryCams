@@ -2440,6 +2440,9 @@ function setupHostAuthentication() {
   // Add event listener for the become host button
   if (becomeHostBtn) {
     becomeHostBtn.addEventListener('click', () => {
+      // Clear any previous authentication attempt
+      clearTimeout(window.authTimeoutId);
+      
       const password = hostPasswordInput.value.trim();
       if (!password) {
         updateHostStatus('Please enter the host password', 'error'); 
@@ -2450,9 +2453,23 @@ function setupHostAuthentication() {
       becomeHostBtn.disabled = true; 
       updateHostStatus('Authenticating...', 'info'); 
       hostAuthenticationInProgress = true; 
+      
+      // Log authentication attempt for debugging (v1.2.1)
+      console.log(`[v1.2.1] Sending host authentication request with password: ${password}`);
+      logInfo(`[v1.2.1] Attempting host authentication with password: ${password}`);
+
+      // Add timeout to prevent getting stuck on "Authenticating..."
+      window.authTimeoutId = setTimeout(() => {
+        if (hostAuthenticationInProgress) {
+          logWarn('[v1.2.1] Host authentication timed out after 5 seconds');
+          hostAuthenticationInProgress = false;
+          becomeHostBtn.disabled = false;
+          updateHostStatus('Authentication timed out. Please try again.', 'error');
+        }
+      }, 5000);
 
       // Send authentication request to server
-      socket.emit('authenticate-host', { password: password }); 
+      socket.emit('authenticate-host', { password: password });
     });
   }
   
