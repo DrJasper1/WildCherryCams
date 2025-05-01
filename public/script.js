@@ -1673,105 +1673,45 @@ function setupEventListeners() {
     });
   }
   
-  // Function to check for waiting clients - v1.2.5
-  function checkForWaitingClients() {
-    console.log(`[v1.2.5] Checking for waiting clients...`);
-    if (isHost && socket) {
-      // Ask server for waiting clients
-      socket.emit('get-waiting-clients');
-      console.log(`[v1.2.5] Sent request for waiting clients`);
-      
-      // Announce host availability
-      socket.emit('host-ready');
-      console.log(`[v1.2.5] Announced host is ready`);
-    } else {
-      console.warn(`[v1.2.5] Not host or no socket connection`);
-    }
-  }
-
-  // Handle host authentication response - v1.2.5
+  // Handle host authentication response
   socket.on('auth-result', (data) => {
-    // Clear timeout to prevent double-handling
-    clearTimeout(window.authTimeoutId);
-    
-    // Reset authentication state
+    // Reset authentication in progress flag
     hostAuthenticationInProgress = false;
-    if (becomeHostBtn) becomeHostBtn.disabled = false;
-    
-    console.log(`[v1.2.5] Received auth-result:`, data);
+    becomeHostBtn.disabled = false;
     
     if (hostStatusDiv) {
-      if (data && data.success) {
-        // Is this a re-authentication?
-        if (data.alreadyAuthenticated) {
-          console.log(`[v1.2.5] Already authenticated as host`);
-          hostStatusDiv.textContent = data.message || 'Already authenticated as host';
-          hostStatusDiv.style.color = '#3498db'; // Use blue for already authenticated
-        } else {
-          console.log(`[v1.2.5] Host authentication successful`);
-          hostStatusDiv.textContent = 'Host authentication successful';
-          hostStatusDiv.style.color = 'green';
-        }
-        
-        // Set host state
+      if (data.success) {
         isHost = true;
+        updateHostStatus('Authentication successful! You are now the host.', 'success');
+        updateHostControls();
         
-        // Show host controls
+        // Show host UI
         if (hostControlsDiv) {
           hostControlsDiv.style.display = 'flex';
         }
         
-        // Check for waiting clients
-        checkForWaitingClients();
-        
-        // Update the become host button or hide it
-        if (becomeHostBtn) {
-          becomeHostBtn.style.display = 'none'; // Hide the button once authenticated
+        // Hide password input
+        if (hostPasswordInput) {
+          hostPasswordInput.disabled = true;
         }
+        if (becomeHostBtn) {
+          becomeHostBtn.disabled = true;
+        }
+        
+        // Create peer connection as host immediately
+        console.log('Creating peer connection as host');
+        createPeerConnection();
+        
+        // Actively check for waiting clients
+        console.log('Host checking for waiting clients');
+        socket.emit('check-waiting-clients');
       } else {
-        console.log(`[v1.2.5] Host authentication failed:`, data ? data.message : 'No response data');
-        hostStatusDiv.textContent = data && data.message ? data.message : 'Authentication failed';
-        hostStatusDiv.style.color = 'red';
+        updateHostStatus(`Authentication failed: ${data.message}`, 'error');
       }
-    } else {
-      console.warn('[v1.2.5] hostStatusDiv not found in DOM');
     }
     
-    try {
-      // Log the event if function exists
-      if (typeof logEvent === 'function') {
-        logEvent('auth-result', { 
-          success: data && data.success,
-          alreadyAuthenticated: data && data.alreadyAuthenticated
-        });
-      }
-    } catch (err) {
-      console.warn('[v1.2.5] Error logging event:', err);
-    }
-  });
-  
-  // Echo test response handler - v1.2.5
-  socket.on('echo-response', (data) => {
-    console.log(`[v1.2.5] Received echo response:`, data);
-    
-    // Show feedback to user about connection status
-    if (hostStatusDiv && hostStatusDiv.textContent.includes('timed out')) {
-      hostStatusDiv.textContent = 'Socket connection working, but authentication timed out. Try again.';
-      hostStatusDiv.style.color = 'orange';
-    }
-    
-    // Log echo response for debugging
-    try {
-      if (typeof logEvent === 'function') {
-        logEvent('echo-response', { 
-          received: true,
-          serverTime: data.serverTime,
-          version: data.version
-        });
-      }
-    } catch (err) {
-      console.warn('[v1.2.5] Error logging echo event:', err);
-    }
+    // Log the event
+    logEvent('auth-result', { success: data.success });
   });
   
   // Toggle audio muting
@@ -2509,65 +2449,22 @@ function setupUI() {
 // Host authentication and control functions
 function setupHostAuthentication() {
   
-  // Add event listener for the become host button - v1.2.4
+  // Add event listener for the become host button
   if (becomeHostBtn) {
     becomeHostBtn.addEventListener('click', () => {
-      // Don't allow authentication if we're already a host
-      if (isHost) {
-        console.log(`[v1.2.4] Already authenticated as host. Skipping authentication.`);
-        updateHostStatus('Already authenticated as host', 'success');
-        return;
-      }
-      
-      // Check if socket is connected before attempting auth
-      if (!socket || !socket.connected) {
-        console.warn(`[v1.2.4] Socket not connected, cannot authenticate`);
-        updateHostStatus('Not connected to server. Please refresh the page.', 'error');
-        return;
-      }
-      
-      // Get password (either from input field or prompt)
-      let password = '';
-      if (hostPasswordInput && hostPasswordInput.value.trim()) {
-        password = hostPasswordInput.value.trim();
-      } else {
-        password = prompt('Enter host password:');
-      }
-      
+      const password = hostPasswordInput.value.trim();
       if (!password) {
-        updateHostStatus('Please enter the host password', 'error');
+        updateHostStatus('Please enter the host password', 'error'); 
         return;
       }
-      
-      // Show authenticating state
+
+      // Disable the button and show loading state
+      becomeHostBtn.disabled = true; 
       updateHostStatus('Authenticating...', 'info'); 
       hostAuthenticationInProgress = true; 
-      becomeHostBtn.disabled = true;
-      
-      // Log authentication attempt for debugging (v1.2.4)
-      console.log(`[v1.2.4] Sending host authentication request with password: ${password}`);
-      
-      // Clear any existing timeout
-      if (window.authTimeoutId) {
-        clearTimeout(window.authTimeoutId);
-      }
-      
-      // Add timeout to prevent getting stuck on "Authenticating..."
-      window.authTimeoutId = setTimeout(() => {
-        if (hostAuthenticationInProgress) {
-          console.warn('[v1.2.4] Host authentication timed out after 8 seconds');
-          hostAuthenticationInProgress = false;
-          becomeHostBtn.disabled = false;
-          updateHostStatus('Authentication timed out. Please try again.', 'error');
-          
-          // Emit a test event to verify socket connection is working
-          socket.emit('echo-test', { message: 'Testing connection from auth timeout' });
-          console.log('[v1.2.4] Sent echo test to verify socket connection');
-        }
-      }, 8000); // Increased timeout period
-      
-      // Send authentication request
-      socket.emit('authenticate-host', { password });
+
+      // Send authentication request to server
+      socket.emit('authenticate-host', { password: password }); 
     });
   }
   
@@ -2670,34 +2567,39 @@ function setupHostSocketEvents() {
     hostAuthenticationInProgress = false;
     becomeHostBtn.disabled = false;
     
-    if (result.success) {
-      isHost = true;
-      updateHostStatus('Authentication successful! You are now the host.', 'success');
-      updateHostControls();
-      
-      // Show host UI
-      if (hostControlsDiv) {
-        hostControlsDiv.classList.remove('hidden');
+    if (hostStatusDiv) {
+      if (result.success) {
+        isHost = true;
+        updateHostStatus('Authentication successful! You are now the host.', 'success');
+        updateHostControls();
+        
+        // Show host UI
+        if (hostControlsDiv) {
+          hostControlsDiv.classList.remove('hidden');
+        }
+        
+        // Hide password input
+        if (hostPasswordInput) {
+          hostPasswordInput.disabled = true;
+        }
+        if (becomeHostBtn) {
+          becomeHostBtn.disabled = true;
+        }
+        
+        // Create peer connection as host immediately
+        console.log('Creating peer connection as host');
+        createPeerConnection();
+        
+        // Actively check for waiting clients
+        console.log('Host checking for waiting clients');
+        socket.emit('check-waiting-clients');
+      } else {
+        updateHostStatus(`Authentication failed: ${result.message}`, 'error');
       }
-      
-      // Hide password input
-      if (hostPasswordInput) {
-        hostPasswordInput.disabled = true;
-      }
-      if (becomeHostBtn) {
-        becomeHostBtn.disabled = true;
-      }
-      
-      // Create peer connection as host immediately
-      console.log('Creating peer connection as host');
-      createPeerConnection();
-      
-      // Actively check for waiting clients
-      console.log('Host checking for waiting clients');
-      socket.emit('check-waiting-clients');
-    } else {
-      updateHostStatus(`Authentication failed: ${result.message}`, 'error');
     }
+    
+    // Log the event
+    logEvent('auth-result', { success: result.success });
   });
   
   // Handle client connection
@@ -2903,155 +2805,50 @@ document.addEventListener('fullscreenchange', () => {
 // Start the app when the DOM is loaded
 document.addEventListener('DOMContentLoaded', init);
 
-// Add detailed logging to pinpoint the cause of premature peer connection closure and enhance track logging.
-peerConnection.onconnectionstatechange = () => {
-    const state = peerConnection.connectionState;
-    logEvent(`Connection state: ${state}`);
-    updateWebRTCStateDisplay();
-
-    if (['disconnected', 'failed', 'closed'].includes(state)) {
-        logWarn(`Connection state is ${state}. Preparing to close peer connection.`); // ADDED log
-        closePeerConnection(`Connection state changed to ${state}`); // Pass reason
-    } else if (state === 'connected') {
-        logSuccess('Peers successfully connected!'); // Use logSuccess for clarity
-        // Ensure remote video is visible if stream exists
-        if (remoteVideo.srcObject) {
-            document.getElementById('remote-video-wrapper').style.display = 'block';
-        }
-    }
-};
-
-// Enhance logging in ontrack
-peerConnection.ontrack = (event) => {
-    if (event.streams && event.streams[0]) {
-        const trackKind = event.track.kind; // 'audio' or 'video'
-        logInfo(`>>> Received remote track: ${trackKind} [ID: ${event.track.id}]`); // ENHANCED log
-
-        if (!remoteStream) {
-            logInfo('Creating new MediaStream for remote tracks.');
-            remoteStream = new MediaStream();
-            remoteVideo.srcObject = remoteStream;
-             // Ensure wrapper is visible only AFTER stream is assigned
-            document.getElementById('remote-video-wrapper').style.display = 'block'; 
-        }
-
-        if (remoteStream.getTracks().some(t => t.id === event.track.id)) {
-            logWarn(`Track ${trackKind} [ID: ${event.track.id}] already present in remote stream. Skipping add.`);
-            return;
-        }
-
-        logInfo(`Adding ${trackKind} track [ID: ${event.track.id}] to remote stream.`);
-        remoteStream.addTrack(event.track);
-
-        // Attempt to play video automatically
-        remoteVideo.play().catch(e => logError(`Error auto-playing remote video: ${e.message}`));
-
-    } else {
-        logWarn('Received track event without associated stream data.');
-    }
-};
-
-// Modify client-left handler logging
-socket.on('client-left', (clientId) => {
-    logWarn(`Received 'client-left' event for ID: ${clientId}`); // ENHANCED log level
-    const waitingIndex = waitingClients.indexOf(clientId);
-    if (waitingIndex > -1) {
-        logInfo(`Removing client ${clientId} from waiting list.`);
-        waitingClients.splice(waitingIndex, 1);
-        updateClientListUI(); // Update UI if needed
-    }
-
-    if (clientId === currentPartnerId) {
-        logWarn(`Partner ${clientId} disconnected via socket event. Closing connection.`); // Use logWarn
-        closePeerConnection(`Received client-left for partner ${clientId}`); // Pass reason
-    } else {
-        logInfo(`Client ${clientId} left, but was not the current partner (${currentPartnerId || 'none'}).`);
-    }
-}); // Fixed syntax error: changed }; back to });
-
-// Modify closePeerConnection to accept and log a reason
-function closePeerConnection(reason = "No reason specified") { // ADDED reason parameter
-    if (!peerConnection) {
-        // logWarn('closePeerConnection called but no active peer connection exists.'); // Avoid log spam if called repeatedly
+// Add detailed logging to host authentication functions on the client
+function authenticateAsHost() {
+    const password = hostPasswordInput.value;
+    if (!password) {
+        console.log('[CLIENT LOG] Host authentication failed: No password provided');
         return;
     }
-    // Prevent closing if already closed or closing
-    if (['closed', 'closing'].includes(peerConnection.connectionState)) {
-        // logWarn(`closePeerConnection called (Reason: ${reason}) but connection is already ${peerConnection.connectionState}.`);
-        return;
-    }
-    logWarn(`Initiating peer connection cleanup. Reason: ${reason}`); // MODIFIED log
 
-    isClosingConnection = true; // Set flag
+    console.log('[CLIENT LOG] Attempting to authenticate as host...');
+    statusDiv.textContent = 'Authenticating...';
+    hostAuthSection.style.display = 'none'; // Hide input after submission
 
-    // Stop all local tracks associated with this connection
-    // We might not want to stop the original localStream tracks here, only the senders
-    // localStream?.getTracks().forEach(track => track.stop()); // Reconsider this line
-    peerConnection.getSenders().forEach(sender => {
-        if (sender.track) {
-            // sender.track.stop(); // Stopping the track might affect the local preview
-            logDebug(`Removing track [${sender.track.kind}: ${sender.track.id}] from sender.`);
-            // peerConnection.removeTrack(sender); // This might be necessary depending on strategy
-        }
-    });
+    // Emit authentication event to the server
+    console.log('[CLIENT LOG] Emitting authenticate-host event');
+    socket.emit('authenticate-host', { password: password });
 
-    // Nullify event handlers to prevent errors after closing
-    peerConnection.ontrack = null;
-    peerConnection.onicecandidate = null;
-    peerConnection.oniceconnectionstatechange = null;
-    peerConnection.onconnectionstatechange = null;
-    peerConnection.ondatachannel = null;
-
-    if (dataChannel) {
-        dataChannel.onmessage = null;
-        dataChannel.onopen = null;
-        dataChannel.onclose = () => { // Ensure close event logs reason if possible
-             logEvent('data-channel-closed', { reason: `PeerConnection closed: ${reason}` });
-             dataChannel = null; // Nullify after close event
-        };
-        if (dataChannel.readyState !== 'closing' && dataChannel.readyState !== 'closed') {
-            logDebug(`Closing data channel (state: ${dataChannel.readyState})`);
-            dataChannel.close();
-        } else {
-            dataChannel = null; // Nullify if already closed/closing
-        }
-    }
-
-    // Close the connection
-    logDebug(`Closing RTCPeerConnection (state: ${peerConnection.connectionState})`);
-    peerConnection.close();
-    // peerConnection = null; // Nullify should happen perhaps on 'closed' state event?
-
-    logInfo(`Peer connection cleanup initiated. Triggered by: ${reason}`); // MODIFIED log
-    updateWebRTCStateDisplay();
-
-    // Reset UI elements
-    if (remoteVideo.srcObject) {
-        logDebug('Stopping remote tracks and clearing remote video source.');
-        remoteVideo.srcObject.getTracks().forEach(track => track.stop());
-        remoteVideo.srcObject = null;
-    }
-    document.getElementById('remote-video-wrapper').style.display = 'none';
-    disableChatFeatures();
-    displayMessage('System', 'Disconnected from peer.');
-
-    // Reset global state related to connection
-    currentPartnerId = null;
-    if (remoteStream) {
-        logDebug('Clearing remote stream reference.');
-        remoteStream.getTracks().forEach(track => track.stop()); // Ensure tracks are stopped
-        remoteStream = null;
-    }
-
-    // Check for next client AFTER a short delay to allow cleanup
-    setTimeout(() => {
-        isClosingConnection = false; // Reset flag
-        peerConnection = null; // Nullify peerConnection object after cleanup
-        logDebug('Peer connection object nullified.');
-         if (isHost) {
-            logInfo('Host checking for next client after disconnection.');
-            checkForWaitingClients();
-         }
-    }, 100); // Delay cleanup completion
-
+    // Optional: Add a timeout for authentication feedback
+    const authTimeout = setTimeout(() => {
+        console.log('[CLIENT LOG] Authentication timeout');
+        statusDiv.textContent = 'Authentication timed out';
+        hostAuthSection.style.display = 'block'; // Show input again
+        hostPasswordInput.value = ''; // Clear the password field
+    }, 10000); // 10 second timeout
 }
+
+// Event listener for host authentication result
+socket.on('auth-result', (data) => {
+    console.log('[CLIENT LOG] Received auth-result event:', data);
+    clearTimeout(authTimeout); // Clear the timeout if response received
+    if (data.success) {
+        console.log('[CLIENT LOG] Host authentication successful. Host ID:', data.hostId);
+        statusDiv.textContent = 'Authenticated as Host!';
+        statusDiv.style.color = '#2ecc71'; // Green color for success
+        isHost = true;
+        hostAuthSection.style.display = 'none'; // Hide input
+        hostPasswordInput.disabled = true; // Disable password input
+        becomeHostBtn.disabled = true; // Disable become host button
+        hostControlsDiv.style.display = 'block'; // Show host controls
+    } else {
+        console.log('[CLIENT LOG] Host authentication failed:', data.message);
+        statusDiv.textContent = `Authentication Failed: ${data.message}`;
+        statusDiv.style.color = '#e74c3c'; // Red color for failure
+        hostAuthSection.style.display = 'block'; // Show input again
+        hostPasswordInput.value = ''; // Clear the password field
+        isHost = false;
+    }
+});

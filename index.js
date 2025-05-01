@@ -448,153 +448,41 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Host authentication handler - v1.2.5
+  // --- Host Authentication --- 
   socket.on('authenticate-host', (data) => {
     try {
       const { password } = data;
-      
-      console.log(`\n==== AUTH ATTEMPT v1.2.5 ====`);
-      console.log(`FROM: ${socket.id}`);
-      console.log(`PASSWORD MATCH: ${password === HOST_PASSWORD}`);
-      console.log(`CURRENT HOST: ${currentHostId || 'None'}`);
-      
-      // Check if this socket is already the host
-      if (currentHostId === socket.id) {
-        console.log(`ℹ️ Re-authentication attempt from current host ${socket.id}`);
-        socket.emit('auth-result', { 
-          success: true, 
-          hostId: currentHostId,
-          message: 'Already authenticated as host.',
-          alreadyAuthenticated: true
-        });
-        console.log(`Re-authentication confirmation sent to ${socket.id}`);
+      console.log(`Host authentication attempt from ${socket.id}`);
+
+      if (currentHostId && currentHostId !== socket.id) {
+        console.log(`Host role already taken by ${currentHostId}. Rejecting ${socket.id}.`);
+        socket.emit('auth-result', { success: false, message: 'Host role already taken.' });
         return;
       }
-      
-      // Check if another socket is already the host
-      if (currentHostId && currentHostId !== socket.id) {
-        console.log(`⚠️ Authentication attempt while another host exists: ${currentHostId}`);
-        
-        // Check if the existing host is still connected
-        if (io.sockets.sockets.has(currentHostId)) {
-          console.log(`⚠️ Existing host ${currentHostId} is still connected, rejecting new host`);
-          socket.emit('auth-result', { 
-            success: false, 
-            message: 'Another host is already active. Try again later.'
-          });
-          return;
-        } else {
-          console.log(`ℹ️ Previous host ${currentHostId} is disconnected, allowing new host`);
-          // Previous host is gone, allow this one to take over
-        }
-      }
-      
+
       if (password === HOST_PASSWORD) {
-        // Set this client as the host
+        console.log(`Host authentication successful for ${socket.id}`);
         currentHostId = socket.id;
-        console.log(`✅ Authentication successful for ${socket.id}`);
-        
-        // Notify client of success
         socket.emit('auth-result', { success: true, hostId: currentHostId });
-        console.log(`Authentication success sent to ${socket.id}`);
-        
         // Notify others that host is now available
         socket.broadcast.emit('host-status', { isHostAvailable: true });
-        
+
+        // If a client was waiting, connect them now
+        // TODO: Better waiting queue logic might be needed for multiple waiters
+        // For now, just check if a client is actively connected
         if (!connectedClientId) {
           console.log(`Host ${currentHostId} is now available. Waiting for client.`);
+          // Any new connection will now see host-status true and connect
         }
+
       } else {
-        console.log(`❌ Authentication failed for ${socket.id} - Incorrect password`);
+        console.log(`Host authentication failed for ${socket.id}`);
         socket.emit('auth-result', { success: false, message: 'Incorrect password.' });
-        console.log(`Authentication failure sent to ${socket.id}`);
       }
-      
-      console.log(`==== END AUTH ATTEMPT ====\n`);
     } catch (error) {
-      console.error(`❌ Error in host authentication:`, error);
+      console.error(`❌ Error during host authentication for ${socket.id}:`, error);
       socket.emit('auth-result', { success: false, message: 'Server error during authentication.' });
     }
-  });
-
-  // --- Echo Test for v1.2.4 --- 
-  socket.on('echo-test', (data) => {
-    console.log(`\n==== ECHO TEST v1.2.4 ====`);
-    console.log(`FROM: ${socket.id}`);
-    console.log(`DATA: ${JSON.stringify(data)}`);
-    console.log(`SOCKET STATE: ${socket.connected ? 'Connected' : 'Disconnected'}`);
-    console.log(`==== END ECHO TEST ====\n`);
-    
-    // Send response back to client
-    socket.emit('echo-response', {
-      received: true,
-      originalMessage: data ? data.message : 'No message',
-      serverTime: new Date().toISOString(),
-      version: 'v1.2.4'
-    });
-  });
-  
-  // --- Get Waiting Clients - v1.2.4 ---
-  socket.on('get-waiting-clients', () => {
-    console.log(`\n==== GET WAITING CLIENTS v1.2.4 ====`);
-    console.log(`FROM HOST: ${socket.id}`);
-    console.log(`WAITING CLIENTS: ${waitingUsers.length}`);
-    
-    // Only respond if this is the host
-    if (socket.id === currentHostId) {
-      socket.emit('waiting-clients-list', {
-        clientCount: waitingUsers.length,
-        clients: waitingUsers
-      });
-      console.log(`Sent waiting clients list to host`);
-    } else {
-      console.log(`Request rejected - not from host`);
-    }
-    console.log(`==== END GET WAITING CLIENTS ====\n`);
-  });
-  
-  // --- Host Ready Event - v1.2.4 ---
-  socket.on('host-ready', () => {
-    console.log(`\n==== HOST READY v1.2.4 ====`);
-    console.log(`FROM HOST: ${socket.id}`);
-    
-    // Verify this is the host
-    if (socket.id !== currentHostId) {
-      console.log(`Ignored host-ready from non-host: ${socket.id}`);
-      return;
-    }
-    
-    // Broadcast host availability to all clients
-    socket.broadcast.emit('host-available', { hostId: currentHostId });
-    console.log(`Broadcast host availability to all clients`);
-    
-    // If there are waiting users, connect the first one
-    if (waitingUsers.length > 0 && !connectedClientId) {
-      const clientToConnect = waitingUsers.shift();
-      console.log(`Connecting waiting client ${clientToConnect} to host ${currentHostId}`);
-      
-      // Connect this client to the host
-      if (io.sockets.sockets.has(clientToConnect)) {
-        // Set up connection between host and client
-        activeConnections.set(currentHostId, clientToConnect);
-        activeConnections.set(clientToConnect, currentHostId);
-        connectedClientId = clientToConnect;
-        
-        // Notify both parties
-        io.to(currentHostId).emit('client-connected', { clientId: clientToConnect });
-        io.to(clientToConnect).emit('connected-to-host', { hostId: currentHostId });
-        
-        console.log(`Successfully connected client ${clientToConnect} to host ${currentHostId}`);
-      } else {
-        console.log(`Failed to connect - client ${clientToConnect} socket not found`);
-        // Remove this client from waiting list as they're no longer connected
-        const idx = waitingUsers.indexOf(clientToConnect);
-        if (idx > -1) waitingUsers.splice(idx, 1);
-      }
-    } else {
-      console.log(`No waiting clients to connect`);
-    }
-    console.log(`==== END HOST READY ====\n`);
   });
 
   // --- Host Actions --- 
