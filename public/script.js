@@ -1674,22 +1674,34 @@ function setupEventListeners() {
   }
   
   // Handle host authentication response
-  socket.on('host-auth-response', (data) => {
+  socket.on('auth-result', (data) => {
+    // Reset authentication in progress flag
+    hostAuthenticationInProgress = false;
+    becomeHostBtn.disabled = false;
+    
     if (hostStatusDiv) {
       if (data.success) {
         hostStatusDiv.textContent = 'Host authentication successful';
         hostStatusDiv.style.color = 'green';
+        isHost = true;
         
         // Show host controls
         if (hostControlsDiv) {
           hostControlsDiv.style.display = 'flex';
         }
+        
+        // Check for waiting clients
+        checkForWaitingClients();
       } else {
         hostStatusDiv.textContent = data.message || 'Authentication failed';
         hostStatusDiv.style.color = 'red';
       }
     }
+    
+    // Log the event
+    logEvent('auth-result', { success: data.success });
   });
+  
   // Toggle audio muting
   toggleAudioBtn.addEventListener('click', () => {
     if (localStream) {
