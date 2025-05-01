@@ -52,6 +52,30 @@ body {
     opacity: 0.7;
 }
 
+/* Host toggle button */
+.host-toggle-btn {
+    padding: 8px 15px;
+    margin-top: 10px;
+    background-color: #2c3e50;
+    color: #f1c40f;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: background-color 0.2s;
+}
+
+.host-toggle-btn:hover {
+    background-color: #34495e;
+}
+
+.host-toggle-btn i {
+    color: #f1c40f;
+}
+
 /* Host Authentication */
 .host-auth-container {
     display: flex;

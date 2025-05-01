@@ -23,6 +23,8 @@ const eventLog = document.getElementById('event-log'); // Event log for debug ev
 const debugInfo = document.getElementById('debug-info'); // Debug info display
 
 // Host-related DOM elements
+const showHostLoginBtn = document.getElementById('show-host-login-btn');
+const hostAuthContainer = document.getElementById('host-auth-container');
 const hostPasswordInput = document.getElementById('host-password');
 const becomeHostBtn = document.getElementById('become-host-btn');
 const hostStatusDiv = document.getElementById('host-status');
@@ -2278,6 +2280,20 @@ function setupUI() {
 
 // Host authentication and control functions
 function setupHostAuthentication() {
+  // Host login toggle button
+  if (showHostLoginBtn) {
+    showHostLoginBtn.addEventListener('click', () => {
+      // Toggle the host authentication container visibility
+      hostAuthContainer.classList.toggle('hidden');
+      
+      // Update button text based on visibility
+      const isVisible = !hostAuthContainer.classList.contains('hidden');
+      showHostLoginBtn.innerHTML = isVisible ? 
+        '<i class="fas fa-crown"></i> Hide Host Options' : 
+        '<i class="fas fa-crown"></i> Host Options';
+    });
+  }
+  
   // Add event listener for the become host button
   if (becomeHostBtn) {
     becomeHostBtn.addEventListener('click', () => {
